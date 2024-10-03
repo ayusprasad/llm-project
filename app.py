@@ -5,6 +5,9 @@ from groq import Groq
 import random
 import nltk
 nltk.download('punkt_tab')
+# import nltk
+nltk.download('averaged_perceptron_tagger')
+
 from nltk import pos_tag, word_tokenize
 from langchain.chains import ConversationChain, LLMChain
 from langchain_core.prompts import (
