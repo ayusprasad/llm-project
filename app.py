@@ -1,4 +1,4 @@
-import langchain_groq
+]import langchain_groq
 import streamlit as st
 import os
 from groq import Groq
@@ -30,11 +30,13 @@ def get_grammar_info(word):
 
 # Main function
 def main():
-    # Embed HubSpot script without async/defer
+    # Embed HubSpot script inside a div which will be in the body of the page
     components.html("""
-    <!-- Start of HubSpot Embed Code --> 
-    <script type="text/javascript" id="hs-script-loader" src="//js.hs-scripts.com/47792726.js"></script> 
-    <!-- End of HubSpot Embed Code -->
+    <div>
+        <!-- Start of HubSpot Embed Code --> 
+        <script type="text/javascript" id="hs-script-loader" src="//js.hs-scripts.com/47792726.js"></script> 
+        <!-- End of HubSpot Embed Code -->
+    </div>
     """, height=0, width=0)
 
     # Get Groq API key
