@@ -30,10 +30,10 @@ def get_grammar_info(word):
 
 # Main function
 def main():
-    # Embed HubSpot script
+    # Embed HubSpot script without async/defer
     components.html("""
     <!-- Start of HubSpot Embed Code --> 
-    <script type="text/javascript" id="hs-script-loader" async defer src="//js.hs-scripts.com/47792726.js"></script> 
+    <script type="text/javascript" id="hs-script-loader" src="//js.hs-scripts.com/47792726.js"></script> 
     <!-- End of HubSpot Embed Code -->
     """, height=0, width=0)
 
