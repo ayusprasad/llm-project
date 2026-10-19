@@ -1,23 +1,56 @@
-# Groq LangChain Conversational Chatbot
+# 📖 AI-Enhanced Vocabulary & Grammar Assistant
 
-This repository contains a Streamlit application that allows users to interact with a conversational chatbot powered by the LangChain API. The application uses the Groq API to generate responses and maintains a history of the conversation to provide context for the chatbot's responses.
+An interactive AI assistant built with **Streamlit**, **LangChain**, and **Groq** for rapid grammatical analysis, part-of-speech tagging (NLTK), and contextual vocabulary learning powered by LLaMA 3.3 and Mixtral.
 
-## Features
+---
 
-- **Conversational Interface**: The application provides a conversational interface where users can ask questions or make statements, and the chatbot responds accordingly.
+## 🚀 Features
+- **Ultra-Fast LLM Inference:** Powered by Groq's LPUs running LLaMA 3.3 and Mixtral models.
+- **Automated POS Tagging:** Combines symbolic NLP (NLTK part-of-speech tagger) with LLM explanations for maximum precision.
+- **Configurable Personas & Memory:** Adjust system prompts and conversation buffer length directly from the sidebar.
+- **Secure Key Management:** Supports both environment variable `GROQ_API_KEY` and interactive user key inputs (keys are never logged or hardcoded).
+- **Docker Ready:** Built-in multi-stage Docker container with pre-cached NLTK corpora for instant startup.
 
-- **Contextual Responses**: The application maintains a history of the conversation, which is used to provide context for the chatbot's responses.
+---
 
-- **LangChain Integration**: The chatbot is powered by the LangChain API, which uses advanced natural language processing techniques to generate human-like responses.
+## 🛠️ Quickstart
 
-## Usage
+### 1. Local Run
+```bash
+# Clone repository
+git clone https://github.com/ayusprasad/llm-project.git
+cd llm-project
 
-To use this application, you need to have Streamlit and the other required Python libraries installed. You also need to have a Groq API key, which you can obtain by signing up on the Groq website.
+# Install dependencies
+pip install -r requirements.txt
 
-Once you have the necessary requirements, you can run the application by executing the script with Streamlit:
+# (Optional) Export Groq API key
+export GROQ_API_KEY="your-groq-api-key"
 
-```shell
+# Launch Streamlit app
 streamlit run app.py
 ```
+Open [http://localhost:8501](http://localhost:8501) in your browser.
 
-This will start the Streamlit server and open the application in your web browser. You can then interact with the chatbot, and the application will generate responses based on the history of the conversation.
+---
+
+### 2. Run with Docker
+```bash
+# Build Docker image
+docker build -t vocabulary-assistant .
+
+# Run container (pass key as environment variable or enter in UI)
+docker run -p 8501:8501 -e GROQ_API_KEY="your-key" vocabulary-assistant
+```
+
+---
+
+## 📁 Project Structure
+```text
+llm-project/
+├── app.py                     # Streamlit application entrypoint
+├── requirements.txt           # Python dependencies
+├── Dockerfile                 # Production Docker configuration
+├── .gitignore                 # Secrets and environment ignore rules
+└── README.md                  # Project documentation
+```

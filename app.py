@@ -1,138 +1,145 @@
-import langchain_groq
-import streamlit as st
 import os
-from groq import Groq
-import random
 import nltk
-import streamlit.components.v1 as components
-
-# Download required NLTK data
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
-
-from nltk import pos_tag, word_tokenize
-from langchain.chains import ConversationChain, LLMChain
+import streamlit as st
+from groq import Groq
+from langchain_groq import ChatGroq
+from langchain.chains import ConversationChain
+from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 from langchain_core.prompts import (
     ChatPromptTemplate,
     HumanMessagePromptTemplate,
     MessagesPlaceholder,
 )
 from langchain_core.messages import SystemMessage
-from langchain.chains.conversation.memory import ConversationBufferWindowMemory
-from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
 
-# Function to get grammar-related information
-def get_grammar_info(word):
-    tokens = word_tokenize(word)
-    pos_tags = pos_tag(tokens)
-    return pos_tags
+st.set_page_config(
+    page_title="AI Vocabulary & Grammar Assistant",
+    page_icon="📖",
+    layout="wide"
+)
 
-# Main function
+
+@st.cache_resource(show_spinner=False)
+def ensure_nltk_corpora():
+    try:
+        nltk.data.find('tokenizers/punkt')
+    except LookupError:
+        nltk.download('punkt', quiet=True)
+        nltk.download('punkt_tab', quiet=True)
+    try:
+        nltk.data.find('taggers/averaged_perceptron_tagger')
+    except LookupError:
+        nltk.download('averaged_perceptron_tagger', quiet=True)
+        nltk.download('averaged_perceptron_tagger_eng', quiet=True)
+
+
+ensure_nltk_corpora()
+from nltk import pos_tag, word_tokenize
+
+
+def get_grammar_info(text):
+    tokens = word_tokenize(text)
+    tags = pos_tag(tokens)
+    return tags
+
+
 def main():
-    # Embed HubSpot script inside a div which will be in the body of the page
-    components.html("""
-    <div>
-        <!-- Start of HubSpot Embed Code --> 
-        <script type="text/javascript" id="hs-script-loader" src="//js.hs-scripts.com/47792726.js"></script> 
-        <!-- End of HubSpot Embed Code -->
-    </div>
-    """, height=0, width=0)
-
-    # Get Groq API key
-    api_key = os.getenv("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")
-
-    client = Groq(api_key="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")
-
-    # Display the Groq logo
-    spacer, col = st.columns([5, 1])
-
-    # Streamlit UI components
-    st.title("AI-Enhanced Vocabulary and Grammar Assistant!")
-    st.write(
-        "Hello! I'm your friendly Groq chatbot. I can help answer your questions, provide grammar insights, or just chat. Discover, Learn, and Master New Words Effortlessly! Let's start our conversation.")
-
-    # Sidebar for customization
-    st.sidebar.title('Customization')
-    system_prompt = st.sidebar.text_input("System prompt:")
-    model = st.sidebar.selectbox(
-        'Choose a model',
-        ['llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma-7b-it']
+    st.title("📖 AI-Enhanced Vocabulary & Grammar Assistant")
+    st.markdown(
+        "Explore words, analyze grammatical structures, parts of speech, and practice contextual vocabulary powered by **Groq** high-speed inference."
     )
-    conversational_memory_length = st.sidebar.slider('Conversational memory length:', 1, 10, value=5)
 
-    memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history",
-                                            return_messages=True)
+    # Sidebar
+    st.sidebar.title("⚙️ Configuration")
+    
+    # API Key retrieval
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        api_key = st.sidebar.text_input(
+            "Groq API Key",
+            type="password",
+            help="Get a free key at https://console.groq.com"
+        )
+        if not api_key:
+            st.info("👋 Welcome! Please enter your **Groq API Key** in the sidebar to activate the assistant.")
 
-    user_question = st.text_input("Enter a word to get its grammar details:")
+    system_prompt = st.sidebar.text_area(
+        "System Persona",
+        value="You are an expert linguistics tutor. Explain vocabulary meanings, nuance, origin, and proper grammar clearly with illustrative sentences.",
+        height=100
+    )
 
-    # Manage chat history
-    if 'chat_history' not in st.session_state:
+    model_choice = st.sidebar.selectbox(
+        "Groq LLM Model",
+        [
+            "llama-3.3-70b-versatile",
+            "llama-3.1-8b-instant",
+            "mixtral-8x7b-32768",
+            "gemma2-9b-it"
+        ]
+    )
+
+    memory_len = st.sidebar.slider("Conversation Memory (turns)", 1, 10, value=5)
+
+    if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
-    else:
-        for message in st.session_state.chat_history:
-            memory.save_context(
-                {'input': message['human']},
-                {'output': message['AI']}
-            )
 
-    # Initialize Groq Langchain chat object and conversation
-    groq_chat = ChatGroq(
-        groq_api_key="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",
-        model_name=model
-    )
+    user_query = st.chat_input("Enter a word, phrase, or sentence to analyze:")
 
-    if user_question:
-        # Get grammar-related information
-        grammar_info = get_grammar_info(user_question)
+    # Render previous messages
+    for msg in st.session_state.chat_history:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            if "pos_tags" in msg:
+                st.caption(f"**Parts of Speech Tags:** `{msg['pos_tags']}`")
 
-        # Construct prompt template
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    content=system_prompt
-                ),
-                MessagesPlaceholder(
-                    variable_name="chat_history"
-                ),
-                HumanMessagePromptTemplate.from_template(
-                    "{human_input}"
-                ),
-            ]
-        )
+    if user_query:
+        if not api_key:
+            st.error("Please provide a Groq API Key in the sidebar.")
+            return
 
-        # Create conversation chain
-        conversation = LLMChain(
-            llm=groq_chat,
-            prompt=prompt,
-            verbose=True,
-            memory=memory,
-        )
+        pos_tags = get_grammar_info(user_query)
 
-        # Generate chatbot response
-        response = conversation.predict(human_input=user_question)
-        message = {'human': user_question, 'AI': response}
+        # Show user message
+        with st.chat_message("user"):
+            st.markdown(user_query)
+        st.session_state.chat_history.append({"role": "user", "content": user_query})
 
-        # Append message to chat history and display responses
-        grammar_message = f"Grammar Info for '{user_question}': {grammar_info}"
-        st.session_state.chat_history.append(message)
-        st.write("Chatbot:", response)
-        st.write(grammar_message)
+        # Generate response
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing with Groq..."):
+                try:
+                    groq_chat = ChatGroq(
+                        groq_api_key=api_key,
+                        model_name=model_choice
+                    )
 
-    # Add a simple delay for demonstration purposes
-    import time
-    time.sleep(4)
+                    messages = [
+                        SystemMessage(content=system_prompt)
+                    ]
+                    # Append recent conversation history
+                    recent = st.session_state.chat_history[-memory_len*2:]
+                    for m in recent[:-1]:
+                        if m["role"] == "user":
+                            messages.append(HumanMessagePromptTemplate.from_template("{text}").format(text=m["content"]))
+                        else:
+                            messages.append(SystemMessage(content=m["content"]))
 
-    print("This message will display first.")
-    print()  # Blank line
-    time.sleep(1)
+                    prompt = f"Analyze the following word or sentence. Detail its part of speech, definition, grammatical function, and give 2 clear examples:\n\n'{user_query}'"
+                    response = groq_chat.invoke(prompt)
+                    response_text = response.content
 
-    print("Here's a message with a gap below it.")
-    print("\n" * 3)  # Adds 3 blank lines
-    time.sleep(1)
+                    st.markdown(response_text)
+                    st.caption(f"**Parts of Speech Tags:** `{pos_tags}`")
 
-    print("This message will display after the gaps.")
+                    st.session_state.chat_history.append({
+                        "role": "assistant",
+                        "content": response_text,
+                        "pos_tags": pos_tags
+                    })
+                except Exception as e:
+                    st.error(f"Error communicating with Groq API: {e}")
 
-# Entry point of the script
+
 if __name__ == "__main__":
     main()
