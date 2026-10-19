@@ -25,17 +25,12 @@ def build_messages(
     prompt = system_prompt.strip() or "You are a helpful, concise assistant."
     messages = [{"role": "system", "content": prompt}]
 
-    recent_history = history[-memory_turns:] if memory_turns > 0 else []
-    for turn in recent_history:
-        user_message = turn.get("user", "").strip()
-        assistant_message = turn.get("assistant", "").strip()
-        if user_message and assistant_message:
-            messages.extend(
-                [
-                    {"role": "user", "content": user_message},
-                    {"role": "assistant", "content": assistant_message},
-                ]
-            )
+    recent_history = history[-memory_turns * 2 :] if memory_turns > 0 else []
+    for message in recent_history:
+        role = message.get("role")
+        content = message.get("content", "").strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content})
 
     current_question = question.strip()
     if current_question:
@@ -103,7 +98,8 @@ def main() -> None:
 
     st.session_state.chat_history.extend(
         [
-            {"user": question, "assistant": answer},
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer},
         ]
     )
 
