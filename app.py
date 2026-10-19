@@ -5,7 +5,7 @@ from typing import Any
 
 import streamlit as st
 from dotenv import load_dotenv
-from groq import Groq
+from groq import APIError, Groq
 
 load_dotenv()
 
@@ -25,7 +25,8 @@ def build_messages(
     prompt = system_prompt.strip() or "You are a helpful, concise assistant."
     messages = [{"role": "system", "content": prompt}]
 
-    for turn in history[-max(0, memory_turns) :]:
+    recent_history = history[-memory_turns:] if memory_turns > 0 else []
+    for turn in recent_history:
         user_message = turn.get("user", "").strip()
         assistant_message = turn.get("assistant", "").strip()
         if user_message and assistant_message:
@@ -96,14 +97,13 @@ def main() -> None:
                 )
             answer = response.choices[0].message.content or ""
             st.markdown(answer or "The model returned an empty response.")
-    except Exception:
+    except APIError:
         st.error("The request failed. Check the API key, model access, and network connection, then retry.")
         return
 
     st.session_state.chat_history.extend(
         [
-            {"role": "user", "content": question},
-            {"role": "assistant", "content": answer},
+            {"user": question, "assistant": answer},
         ]
     )
 
