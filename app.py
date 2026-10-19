@@ -1,138 +1,108 @@
-import langchain_groq
-import streamlit as st
+from __future__ import annotations
+
 import os
-from groq import Groq
-import random
-import nltk
-import streamlit.components.v1 as components
+from typing import Any
 
-# Download required NLTK data
-nltk.download('punkt')
-nltk.download('averaged_perceptron_tagger')
+import streamlit as st
+from dotenv import load_dotenv
+from groq import APIError, Groq
 
-from nltk import pos_tag, word_tokenize
-from langchain.chains import ConversationChain, LLMChain
-from langchain_core.prompts import (
-    ChatPromptTemplate,
-    HumanMessagePromptTemplate,
-    MessagesPlaceholder,
-)
-from langchain_core.messages import SystemMessage
-from langchain.chains.conversation.memory import ConversationBufferWindowMemory
-from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
+load_dotenv()
 
-# Function to get grammar-related information
-def get_grammar_info(word):
-    tokens = word_tokenize(word)
-    pos_tags = pos_tag(tokens)
-    return pos_tags
+MODELS = {
+    "GPT OSS 20B": "openai/gpt-oss-20b",
+    "GPT OSS 120B": "openai/gpt-oss-120b",
+}
 
-# Main function
-def main():
-    # Embed HubSpot script inside a div which will be in the body of the page
-    components.html("""
-    <div>
-        <!-- Start of HubSpot Embed Code --> 
-        <script type="text/javascript" id="hs-script-loader" src="//js.hs-scripts.com/47792726.js"></script> 
-        <!-- End of HubSpot Embed Code -->
-    </div>
-    """, height=0, width=0)
 
-    # Get Groq API key
-    api_key = os.getenv("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")
+def build_messages(
+    system_prompt: str,
+    history: list[dict[str, str]],
+    question: str,
+    memory_turns: int,
+) -> list[dict[str, str]]:
+    """Build a bounded provider request from the current prompt and chat history."""
+    prompt = system_prompt.strip() or "You are a helpful, concise assistant."
+    messages = [{"role": "system", "content": prompt}]
 
-    client = Groq(api_key="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")
+    recent_history = history[-memory_turns * 2 :] if memory_turns > 0 else []
+    for message in recent_history:
+        role = message.get("role")
+        content = message.get("content", "").strip()
+        if role in {"user", "assistant"} and content:
+            messages.append({"role": role, "content": content})
 
-    # Display the Groq logo
-    spacer, col = st.columns([5, 1])
+    current_question = question.strip()
+    if current_question:
+        messages.append({"role": "user", "content": current_question})
+    return messages
 
-    # Streamlit UI components
-    st.title("AI-Enhanced Vocabulary and Grammar Assistant!")
-    st.write(
-        "Hello! I'm your friendly Groq chatbot. I can help answer your questions, provide grammar insights, or just chat. Discover, Learn, and Master New Words Effortlessly! Let's start our conversation.")
 
-    # Sidebar for customization
-    st.sidebar.title('Customization')
-    system_prompt = st.sidebar.text_input("System prompt:")
-    model = st.sidebar.selectbox(
-        'Choose a model',
-        ['llama3-8b-8192', 'mixtral-8x7b-32768', 'gemma-7b-it']
-    )
-    conversational_memory_length = st.sidebar.slider('Conversational memory length:', 1, 10, value=5)
+def _render_message(message: dict[str, str]) -> None:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    memory = ConversationBufferWindowMemory(k=conversational_memory_length, memory_key="chat_history",
-                                            return_messages=True)
 
-    user_question = st.text_input("Enter a word to get its grammar details:")
+def main() -> None:
+    st.set_page_config(page_title="Groq Chat", page_icon="💬")
+    st.title("Groq Chat")
+    st.caption("A focused demonstration of session-based chat with Groq.")
 
-    # Manage chat history
-    if 'chat_history' not in st.session_state:
+    if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
-    else:
-        for message in st.session_state.chat_history:
-            memory.save_context(
-                {'input': message['human']},
-                {'output': message['AI']}
-            )
 
-    # Initialize Groq Langchain chat object and conversation
-    groq_chat = ChatGroq(
-        groq_api_key="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",
-        model_name=model
+    with st.sidebar:
+        st.header("Conversation settings")
+        model_label = st.selectbox("Model", list(MODELS))
+        memory_turns = st.slider("Recent turns to include", min_value=1, max_value=10, value=5)
+        system_prompt = st.text_area(
+            "System prompt",
+            value="You are a helpful assistant. Give clear, practical answers.",
+            max_chars=2_000,
+        )
+        if st.button("Clear conversation", use_container_width=True):
+            st.session_state.chat_history = []
+            st.rerun()
+
+    for message in st.session_state.chat_history:
+        _render_message(message)
+
+    question = st.chat_input("Ask a question")
+    if not question:
+        return
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        st.error("GROQ_API_KEY is missing. Add it to your local .env file and restart Streamlit.")
+        return
+
+    _render_message({"role": "user", "content": question})
+    try:
+        request_messages = build_messages(
+            system_prompt,
+            st.session_state.chat_history,
+            question,
+            memory_turns,
+        )
+        with st.chat_message("assistant"):
+            with st.spinner("Generating a response..."):
+                response: Any = Groq(api_key=api_key).chat.completions.create(
+                    model=MODELS[model_label],
+                    messages=request_messages,
+                )
+            answer = response.choices[0].message.content or ""
+            st.markdown(answer or "The model returned an empty response.")
+    except APIError:
+        st.error("The request failed. Check the API key, model access, and network connection, then retry.")
+        return
+
+    st.session_state.chat_history.extend(
+        [
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": answer},
+        ]
     )
 
-    if user_question:
-        # Get grammar-related information
-        grammar_info = get_grammar_info(user_question)
 
-        # Construct prompt template
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                SystemMessage(
-                    content=system_prompt
-                ),
-                MessagesPlaceholder(
-                    variable_name="chat_history"
-                ),
-                HumanMessagePromptTemplate.from_template(
-                    "{human_input}"
-                ),
-            ]
-        )
-
-        # Create conversation chain
-        conversation = LLMChain(
-            llm=groq_chat,
-            prompt=prompt,
-            verbose=True,
-            memory=memory,
-        )
-
-        # Generate chatbot response
-        response = conversation.predict(human_input=user_question)
-        message = {'human': user_question, 'AI': response}
-
-        # Append message to chat history and display responses
-        grammar_message = f"Grammar Info for '{user_question}': {grammar_info}"
-        st.session_state.chat_history.append(message)
-        st.write("Chatbot:", response)
-        st.write(grammar_message)
-
-    # Add a simple delay for demonstration purposes
-    import time
-    time.sleep(4)
-
-    print("This message will display first.")
-    print()  # Blank line
-    time.sleep(1)
-
-    print("Here's a message with a gap below it.")
-    print("\n" * 3)  # Adds 3 blank lines
-    time.sleep(1)
-
-    print("This message will display after the gaps.")
-
-# Entry point of the script
 if __name__ == "__main__":
     main()
